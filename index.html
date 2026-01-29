@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>2026 預苦期靈修日曆 | 40天生命旅程</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- 引入外部靈修資料檔 (重要：此檔案必須與 index.html 在同一目錄) -->
+    <script src="lent-data.js"></script>
+
+    <style>
+        :root {
+            --primary-purple: #4c1d95;
+            --accent-gold: #fbbf24;
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+        }
+        body {
+            font-family: 'Crimson Pro', 'Noto Serif TC', serif;
+            background: linear-gradient(135deg, #2e1065 0%, #4c1d95 50%, #6d28d9 100%);
+            background-attachment: fixed;
+            color: #fef3c7;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+        .calendar-day {
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            aspect-ratio: 1 / 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .calendar-day:not(.disabled):active {
+            transform: scale(0.9);
+        }
+        @media (min-width: 768px) {
+            .calendar-day:not(.disabled):hover {
+                transform: translateY(-5px) scale(1.05);
+                background: rgba(255, 255, 255, 0.2);
+            }
+        }
+        .calendar-day.today {
+            outline: 2px solid var(--accent-gold);
+            outline-offset: -2px;
+        }
+        .calendar-day.disabled {
+            opacity: 0.15;
+            cursor: not-allowed;
+            filter: grayscale(1);
+        }
+        .progress-ring { transform: rotate(-90deg); }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: fadeInUp 0.5s ease-out forwards; }
+        .nav-btn {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            touch-action: manipulation;
+        }
+        .nav-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+<div id="app" class="max-w-6xl mx-auto px-2 py-6 md:px-4 md:py-12">
+    
+    <!-- 視圖 1: 日曆主介面 -->
+    <section id="view-calendar" class="space-y-6 md:space-y-8 animate-fade-in">
+        <header class="text-center space-y-4 md:space-y-6">
+            <div class="px-4">
+                <h1 id="main-title" class="text-3xl md:text-7xl font-bold text-amber-100 tracking-tight mb-2 leading-tight">2026 預苦期靈修</h1>
+                <p id="sub-title" class="text-base md:text-2xl text-purple-200 font-light italic">40天靈修旅程 (不含主日)</p>
+            </div>
+            
+            <div class="flex items-center justify-center gap-4 md:gap-8 py-2">
+                <div class="text-right">
+                    <span id="days-count" class="block text-3xl md:text-5xl font-bold text-amber-400">0</span>
+                    <span class="text-[10px] md:text-xs uppercase tracking-widest text-purple-300">已完成</span>
+                </div>
+                <div class="relative w-16 h-16 md:w-24 h-24">
+                    <svg class="progress-ring w-full h-full" viewBox="0 0 100 100">
+                        <circle class="text-white/10" stroke-width="6" stroke="currentColor" fill="transparent" r="42" cx="50" cy="50"/>
+                        <circle id="progress-bar" class="text-amber-400 transition-all duration-1000" stroke-width="6" stroke-dasharray="263.89" stroke-dashoffset="263.89" stroke-linecap="round" stroke="currentColor" fill="transparent" r="42" cx="50" cy="50"/>
+                    </svg>
+                    <div class="absolute inset-0 flex items-center justify-center text-[10px] md:text-xs font-bold">40天</div>
+                </div>
+                <div class="text-left">
+                    <span class="block text-3xl md:text-5xl font-bold text-amber-400">40</span>
+                    <span class="text-[10px] md:text-xs uppercase tracking-widest text-purple-300">總天數</span>
+                </div>
+            </div>
+
+            <!-- 月份切換按鈕區 -->
+            <div class="flex items-center justify-center gap-2 md:gap-8 pt-2 px-2">
+                <button id="btn-prev-month" onclick="changeMonth(-1)" class="nav-btn px-4 py-2 md:px-6 md:py-3 rounded-xl md:rounded-2xl font-bold text-white text-sm md:text-base flex items-center gap-1">
+                    ← <span class="hidden md:inline">上個月</span>
+                </button>
+                <h2 id="display-month" class="text-xl md:text-4xl font-bold min-w-[120px] md:min-w-[180px] text-amber-100">2026年 2月</h2>
+                <button id="btn-next-month" onclick="changeMonth(1)" class="nav-btn px-4 py-2 md:px-6 md:py-3 rounded-xl md:rounded-2xl font-bold text-white text-sm md:text-base flex items-center gap-1">
+                    <span class="hidden md:inline">下個月</span> →
+                </button>
+            </div>
+        </header>
+
+        <main class="glass-card rounded-[1.5rem] md:rounded-[2rem] p-2 md:p-10 mx-1">
+            <!-- 星期標題 -->
+            <div class="grid grid-cols-7 gap-1 mb-4 text-center text-[10px] md:text-base font-bold tracking-tighter md:tracking-widest">
+                <div class="text-red-400">日</div>
+                <div class="text-purple-200">一</div>
+                <div class="text-purple-200">二</div>
+                <div class="text-purple-200">三</div>
+                <div class="text-purple-200">四</div>
+                <div class="text-purple-200">五</div>
+                <div class="text-purple-200">六</div>
+            </div>
+            <!-- 日曆格 -->
+            <div id="calendar-grid" class="grid grid-cols-7 gap-1 md:gap-4 text-center"></div>
+        </main>
+    </section>
+
+    <!-- 視圖 2: 靈修詳情頁 -->
+    <section id="view-detail" class="hidden max-w-4xl mx-auto space-y-4 md:space-y-6 animate-fade-in">
+        <button onclick="closeDetail()" class="nav-btn ml-2 px-5 py-2.5 rounded-xl text-white font-bold shadow-lg flex items-center gap-2 text-sm md:text-base">
+            <span>←</span> 返回日曆
+        </button>
+
+        <article class="glass-card rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden mx-1">
+            <div class="bg-gradient-to-r from-amber-500/20 to-purple-500/20 p-6 md:p-12 border-b border-white/10 text-center md:text-left">
+                <p id="det-day-num" class="text-amber-400 font-bold tracking-widest text-base md:text-lg mb-1">DAY 01</p>
+                <h2 id="det-date-str" class="text-2xl md:text-5xl font-bold text-white"></h2>
+            </div>
+
+            <div class="p-6 md:p-12 space-y-8 md:space-y-12">
+                <section>
+                    <div class="flex items-center gap-3 mb-4 md:mb-6">
+                        <span class="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-amber-400/20 rounded-full text-amber-400 text-lg md:text-xl">📖</span>
+                        <h3 class="text-xl md:text-2xl font-bold text-amber-100">今日經文</h3>
+                    </div>
+                    <blockquote class="border-l-4 border-amber-400 pl-4 md:pl-8 space-y-2">
+                        <p id="det-scripture" class="text-xl md:text-3xl leading-relaxed font-medium text-white"></p>
+                        <cite id="det-ref" class="block text-purple-300 text-lg md:text-xl not-italic font-bold"></cite>
+                    </blockquote>
+                </section>
+
+                <div class="grid md:grid-cols-2 gap-6 md:gap-10">
+                    <section class="space-y-3">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-purple-400/20 rounded-full text-purple-300 text-lg">💭</span>
+                            <h3 class="text-xl md:text-2xl font-bold text-amber-100">默想反思</h3>
+                        </div>
+                        <p id="det-reflection" class="text-purple-50 text-base md:text-lg leading-relaxed"></p>
+                    </section>
+                    <section class="space-y-3">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-green-400/20 rounded-full text-green-300 text-lg">✨</span>
+                            <h3 class="text-xl md:text-2xl font-bold text-amber-100">今日操練</h3>
+                        </div>
+                        <p id="det-practice" class="text-purple-50 text-base md:text-lg leading-relaxed"></p>
+                    </section>
+                </div>
+
+                <section class="bg-white/5 p-5 md:p-8 rounded-2xl md:rounded-3xl border border-white/10">
+                    <div class="flex items-center gap-3 mb-3">
+                        <span class="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-blue-400/20 rounded-full text-blue-300 text-lg">🙏</span>
+                        <h3 class="text-xl md:text-2xl font-bold text-amber-100">禱告回應</h3>
+                    </div>
+                    <p id="det-prayer" class="italic text-lg md:text-xl text-purple-100/90 leading-relaxed"></p>
+                </section>
+            </div>
+
+            <footer class="flex justify-between p-5 md:p-8 bg-black/30 border-t border-white/10">
+                <button id="btn-prev" onclick="navigateDay(-1)" class="px-4 py-2 md:px-8 md:py-3 rounded-xl bg-white/10 hover:bg-white/20 disabled:opacity-20 transition-all font-bold text-sm md:text-base">← 前一天</button>
+                <button id="btn-next" onclick="navigateDay(1)" class="px-4 py-2 md:px-8 md:py-3 rounded-xl bg-white/10 hover:bg-white/20 disabled:opacity-20 transition-all font-bold text-sm md:text-base">下一天 →</button>
+            </footer>
+        </article>
+    </section>
+
+</div>
+
+<script>
+    /**
+     * 1. 內容資料庫 (LENT_DATA)
+     * 注意：內容已移至外部檔案 'lent-data.js'
+     * 系統會自動讀取 window.LENT_DATA
+     */
+
+    // 簡單的檢查，確保外部資料有載入
+    window.onload = function() {
+        if (typeof window.LENT_DATA === 'undefined' || !window.LENT_DATA[1]) {
+            console.error("錯誤：找不到靈修資料。請確認 'lent-data.js' 已正確載入。");
+            // 緊急備用空資料，防止完全崩潰
+            window.LENT_DATA = {};
+        }
+        
+        // 執行原本的初始化
+        initApp();
+    };
+
+    /**
+     * 2. 全域狀態
+     */
+    const STATE = {
+        year: 2026,
+        month: 1, // 0 = 1月, 1 = 2月
+        lentStart: new Date(2026, 1, 18),
+        lentEnd: new Date(2026, 3, 4),
+        currentSelection: null
+    };
+
+    /**
+     * 3. 核心功能
+     */
+    function getLentDay(date) {
+        if (date < STATE.lentStart || date > STATE.lentEnd || date.getDay() === 0) return null;
+        let count = 0;
+        let temp = new Date(STATE.lentStart);
+        while (temp <= date) {
+            if (temp.getDay() !== 0) count++;
+            temp.setDate(temp.getDate() + 1);
+        }
+        return count;
+    }
+
+    function renderCalendar() {
+        const grid = document.getElementById('calendar-grid');
+        const monthLabel = document.getElementById('display-month');
+        grid.innerHTML = '';
+        const firstDay = new Date(STATE.year, STATE.month, 1).getDay();
+        const daysInMonth = new Date(STATE.year, STATE.month + 1, 0).getDate();
+        const todayStr = new Date().toDateString();
+
+        monthLabel.textContent = `${STATE.year}年 ${STATE.month + 1}月`;
+
+        // 更新月份導航按鈕狀態 (限制 2026/02 - 2026/04)
+        const btnPrev = document.getElementById('btn-prev-month');
+        const btnNext = document.getElementById('btn-next-month');
+        btnPrev.disabled = (STATE.year === 2026 && STATE.month <= 1);
+        btnNext.disabled = (STATE.year === 2026 && STATE.month >= 3);
+
+        for (let i = 0; i < firstDay; i++) grid.appendChild(document.createElement('div'));
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const date = new Date(STATE.year, STATE.month, d);
+            const lentDayNum = getLentDay(date);
+            const isToday = date.toDateString() === todayStr;
+
+            const cell = document.createElement('div');
+            cell.className = `calendar-day glass-card rounded-xl md:rounded-2xl p-0.5 md:p-1 cursor-pointer ${lentDayNum ? '' : 'disabled'} ${isToday ? 'today' : ''}`;
+            
+            cell.innerHTML = `
+                <span class="text-2xl md:text-5xl font-bold leading-none">${d}</span>
+                ${lentDayNum ? `<span class="text-[11px] md:text-2xl text-amber-400 font-bold mt-0.5 leading-none">第${lentDayNum}天</span>` : ''}
+            `;
+            
+            if (lentDayNum) cell.onclick = () => openDetail(lentDayNum, date);
+            grid.appendChild(cell);
+        }
+        updateProgressUI();
+    }
+
+    function changeMonth(dir) {
+        let targetMonth = STATE.month + dir;
+        let targetYear = STATE.year;
+
+        if (targetMonth > 11) { targetMonth = 0; targetYear++; }
+        if (targetMonth < 0) { targetMonth = 11; targetYear--; }
+
+        // 範圍限制邏輯：僅限 2026/02 (1) 到 2026/04 (3)
+        if (targetYear !== 2026) return;
+        if (targetMonth < 1 || targetMonth > 3) return;
+
+        STATE.month = targetMonth;
+        STATE.year = targetYear;
+        renderCalendar();
+    }
+
+    function updateProgressUI() {
+        const today = new Date();
+        let currentDay = getLentDay(today);
+        if (!currentDay) {
+            if (today > STATE.lentEnd) currentDay = 40;
+            else if (today < STATE.lentStart) currentDay = 0;
+            else currentDay = 0;
+        }
+        document.getElementById('days-count').textContent = currentDay;
+        const circle = document.getElementById('progress-bar');
+        const circumference = 263.89;
+        const offset = circumference - (currentDay / 40) * circumference;
+        circle.style.strokeDashoffset = offset;
+    }
+
+    function openDetail(dayNum, date) {
+        STATE.currentSelection = dayNum;
+        
+        // 修改處：讀取 window.LENT_DATA
+        const data = (window.LENT_DATA && window.LENT_DATA[dayNum]) 
+            ? window.LENT_DATA[dayNum] 
+            : { 
+                scripture: "資料載入中或未設定...", 
+                ref: "", 
+                reflection: "請確認 lent-data.js 檔案內容。", 
+                practice: "", 
+                prayer: "" 
+              };
+
+        document.getElementById('view-calendar').classList.add('hidden');
+        document.getElementById('view-detail').classList.remove('hidden');
+        document.getElementById('det-day-num').textContent = `DAY ${String(dayNum).padStart(2, '0')}`;
+        document.getElementById('det-date-str').textContent = `${date.getFullYear()}年${date.getMonth()+1}月${date.getDate()}日`;
+        document.getElementById('det-scripture').textContent = data.scripture;
+        document.getElementById('det-ref').textContent = data.ref;
+        document.getElementById('det-reflection').textContent = data.reflection;
+        document.getElementById('det-practice').textContent = data.practice;
+        document.getElementById('det-prayer').textContent = data.prayer;
+        document.getElementById('btn-prev').disabled = dayNum <= 1;
+        document.getElementById('btn-next').disabled = dayNum >= 40;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function closeDetail() {
+        document.getElementById('view-detail').classList.add('hidden');
+        document.getElementById('view-calendar').classList.remove('hidden');
+    }
+
+    function navigateDay(dir) {
+        const nextDayNum = STATE.currentSelection + dir;
+        if (nextDayNum < 1 || nextDayNum > 40) return;
+        let target = new Date(STATE.lentStart);
+        let count = 0;
+        while (count < nextDayNum) {
+            if (target.getDay() !== 0) count++;
+            if (count === nextDayNum) break;
+            target.setDate(target.getDate() + 1);
+        }
+        openDetail(nextDayNum, target);
+    }
+
+    // 將原本的 window.onload 邏輯包裝成 initApp
+    function initApp() {
+        const now = new Date();
+        // 自動定位到範圍內：若今天早於 2/18 則顯示 2月；若晚於 4/4 則顯示 4月；否則顯示當月
+        if (now.getFullYear() === 2026 && now.getMonth() >= 1 && now.getMonth() <= 3) {
+            STATE.month = now.getMonth();
+        } else if (now > STATE.lentEnd) {
+            STATE.month = 3;
+        } else {
+            STATE.month = 1;
+        }
+        renderCalendar();
+    };
+</script>
+
+</body>
+</html>
